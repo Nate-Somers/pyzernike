@@ -278,11 +278,11 @@ for (int z = 0; z < dimZ; ++z) {
 T dxyz2 = dxy2 + dz2[z];
 
 // Skip voxels outside the unit sphere
-if (dxyz2 > 1.0)
+if (dxyz2 > (T)1.0)
 continue;
 
 // Reset function value for this voxel
-ComplexT fVal = (0, 0);
+ComplexT fVal(0, 0);  // Properly initializes both real and imaginary parts
 
 // Iterate through all valid moments
 for (int n = _minN; n <= _maxN; ++n) {
