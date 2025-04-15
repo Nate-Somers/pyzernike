@@ -528,38 +528,51 @@ void ZernikeMoments<VoxelT, MomentT>::CheckOrthonormality(int _n1, int _l1,
 }
 
 /**
- * Evaluates the integral of a monomial x^p*y^q*z^r within the unit sphere
- * Attention : a very stupid implementation, thus it's accordingly very slow
+ * Nate Correction
+ * 
  */
-template <class VoxelT, class MomentT>
-MomentT ZernikeMoments<VoxelT, MomentT>::EvalMonomialIntegral(int _p, int _q,
-                                                              int _r,
-                                                              int _dim) {
-  T radius = (T)(_dim - 1) / (T)2;
-  T scale = std::pow((T)1 / radius, 3);
-  T center = (T)(_dim - 1) / (T)2;
-
-  T result = (T)0;
-  T point[3];
-
-  for (int x = 0; x < _dim; ++x) {
-    point[0] = ((T)x - center) / radius;
-    for (int y = 0; y < _dim; ++y) {
-      point[1] = ((T)y - center) / radius;
-      for (int z = 0; z < _dim; ++z) {
-        point[2] = ((T)z - center) / radius;
-
-        if (point[0] * point[0] + point[1] * point[1] + point[2] * point[2] >
-            (T)1) {
-          continue;
-        }
-
-        result += std::pow(point[0], (T)_p) * std::pow(point[1], (T)_q) *
-                  std::pow(point[2], (T)_r);
-      }
-    }
-  }
-
-  result *= (T)(3.0 / (4.0 * PI)) * scale;
-  return result;
-} 
+ template <class VoxelT, class MomentT>
+ MomentT ZernikeMoments<VoxelT, MomentT>::EvalMonomialIntegral(int _p, int _q,
+                                                               int _r,
+                                                               int _dim) {
+   // By symmetry, if any exponent is odd, the integral is zero.
+   if ((_p % 2 != 0) || (_q % 2 != 0) || (_r % 2 != 0))
+     return (T)0;
+ 
+   // For even exponents, let a = _p/2, b = _q/2, c = _r/2.
+   int a = _p / 2;
+   int b = _q / 2;
+   int c = _r / 2;
+ 
+   // Helper lambda: compute double factorial.
+   // By convention, (-1)!! = 1, and if n <= 0, the result is defined as 1.
+   auto double_factorial = [](int n) -> T {
+       if (n <= 0)
+         return (T)1;
+       T prod = 1;
+       for (int i = n; i > 0; i -= 2) {
+          prod *= i;
+       }
+       return prod;
+   };
+ 
+   // The analytic integral of x^(2a) y^(2b) z^(2c) over the unit ball in ℝ^3 is:
+   //    I(2a,2b,2c) = 4π * [(2a-1)!! (2b-1)!! (2c-1)!!] / [(2(a+b+c)+3)!!]
+   // With the library’s normalization factor 3/(4π), the normalized integral is:
+   //    I_norm(2a,2b,2c) = 3 * [(2a-1)!! (2b-1)!! (2c-1)!!] / [(2(a+b+c)+3)!!]
+   T numerator = double_factorial(2 * a - 1) *
+                 double_factorial(2 * b - 1) *
+                 double_factorial(2 * c - 1);
+   int totalOdd = 2 * (a + b + c) + 3;
+   T denominator = double_factorial(totalOdd);
+ 
+   T integral_norm = 3 * numerator / denominator;  // Normalized analytic value.
+ 
+   // Compute the scaling factor.
+   // The voxel grid is assumed defined on [0, _dim-1] with center at (_dim-1)/2 and radius = (_dim-1)/2.
+   T r_grid = (T)(_dim - 1) / (T)2;
+   T scale = std::pow((T)1 / r_grid, 3);
+ 
+   return integral_norm * scale;
+ }
+ 
