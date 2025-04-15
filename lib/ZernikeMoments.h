@@ -529,7 +529,7 @@ void ZernikeMoments<VoxelT, MomentT>::CheckOrthonormality(int _n1, int _l1,
 
 /**
  * Nate Correction
- * 
+ * Evaluates the integral of a monomial x^p*y^q*z^r within the unit sphere
  */
  template <class VoxelT, class MomentT>
  MomentT ZernikeMoments<VoxelT, MomentT>::EvalMonomialIntegral(int _p, int _q,
