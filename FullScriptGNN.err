@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/nsomers/GNN_v2_scripts/GNN_v2_main.py", line 14, in <module>
+    from feature_extraction import parse_xyz_folder, generate_e3fp_for_dataset, write_ConformerData, generate_zernike_for_dataset
+  File "/orcd/home/002/nsomers/GNN_v2_scripts/feature_extraction.py", line 26, in <module>
+    from pyzernike import ZernikeDescriptor
+ModuleNotFoundError: No module named 'pyzernike'

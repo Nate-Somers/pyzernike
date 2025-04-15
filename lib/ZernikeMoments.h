@@ -344,11 +344,6 @@ printProgressBar(total_iterations, total_iterations);
 std::cout << std::endl;
 }
 
-    // NormalizeGridValues (_grid);
-    printProgressBar(total_iterations, total_iterations);
-    std::cout << std::endl;
-  }
-
   void NormalizeGridValues(ComplexT3D &_grid);
   void CheckOrthonormality(int _n1, int _l1, int _m1, int _n2, int _l2,
                            int _m2);
