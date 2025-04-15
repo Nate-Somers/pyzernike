@@ -206,99 +206,143 @@ public:
    * @param _minL Max value for l freq index.
    * @param _maxL Max value for l freq index.
    */
-  void Reconstruct(ComplexT3D &_grid, T _xCOG, T _yCOG, T _zCOG, T _scale,
-                   int _minN = 0, int _maxN = 100, int _minL = 0, int _maxL = 100) {
-    if (_maxN == 100)
-      _maxN = order_;
+   void Reconstruct(ComplexT3D &_grid, T _xCOG, T _yCOG, T _zCOG, T _scale,
+    int _minN = 0, int _maxN = 100, int _minL = 0, int _maxL = 100) {
+if (_maxN == 100)
+_maxN = order_;
 
-    int dimX = _grid.size();
-    int dimY = _grid[0].size();
-    int dimZ = _grid[0][0].size();
+int dimX = _grid.size();
+int dimY = _grid[0].size();
+int dimZ = _grid[0][0].size();
 
-    // translation
-    T vx = _xCOG;
-    T vy = _yCOG;
-    T vz = _zCOG;
+// Precompute normalized coordinates and their squares
+std::vector<T> dx(dimX), dx2(dimX);
+std::vector<T> dy(dimY), dy2(dimY);
+std::vector<T> dz(dimZ), dz2(dimZ);
 
-    // Unit sphere constraints
-    T dxy2, dxyz2;
-    std::vector<T> dx(dimX), dx2(dimX);
-    std::vector<T> dy(dimY), dy2(dimY);
-    std::vector<T> dz(dimZ), dz2(dimZ);
+for (int i = 0; i < dimX; ++i) {
+dx[i] = ((T)i - _xCOG) * _scale;
+dx2[i] = dx[i] * dx[i];
+}
+for (int i = 0; i < dimY; ++i) {
+dy[i] = ((T)i - _yCOG) * _scale;
+dy2[i] = dy[i] * dy[i];
+}
+for (int i = 0; i < dimZ; ++i) {
+dz[i] = ((T)i - _zCOG) * _scale;
+dz2[i] = dz[i] * dz[i];
+}
 
-    for (int i = 0; i < dimX; ++i) {
-      dx[i] = ((T)i - vx) * _scale;
-      dx2[i] = dx[i] * dx[i];
-    }
-    for (int i = 0; i < dimY; ++i) {
-      dy[i] = ((T)i - vy) * _scale;
-      dy2[i] = dy[i] * dy[i];
-    }
-    for (int i = 0; i < dimZ; ++i) {
-      dz[i] = ((T)i - vz) * _scale;
-      dz2[i] = dz[i] * dz[i];
-    }
+// Determine maximum exponent needed based on order
+int maxExp = _maxN + 5;  // Conservative estimate
 
-    long total_iterations = dimX;
-    long progress = 0;
-// origin is at the grid center, all voxels are projected onto the unit sphere
+// Precompute powers for all coordinates
+std::vector<std::vector<T>> dxPowers(dimX, std::vector<T>(maxExp, 1));
+std::vector<std::vector<T>> dyPowers(dimY, std::vector<T>(maxExp, 1));
+std::vector<std::vector<T>> dzPowers(dimZ, std::vector<T>(maxExp, 1));
+
+for (int x = 0; x < dimX; ++x) {
+for (int e = 1; e < maxExp; ++e) {
+dxPowers[x][e] = dxPowers[x][e-1] * dx[x];
+}
+}
+for (int y = 0; y < dimY; ++y) {
+for (int e = 1; e < maxExp; ++e) {
+dyPowers[y][e] = dyPowers[y][e-1] * dy[y];
+}
+}
+for (int z = 0; z < dimZ; ++z) {
+for (int e = 1; e < maxExp; ++e) {
+dzPowers[z][e] = dzPowers[z][e-1] * dz[z];
+}
+}
+
+// Progress tracking
+long total_iterations = dimX;
+int progress_interval = std::max(1, dimX / 100); // Update progress ~100 times
+
+// Process voxels in parallel
 #pragma omp parallel for schedule(dynamic)
-    for (int x = 0; x < dimX; ++x) {
-
+for (int x = 0; x < dimX; ++x) {
+// Update progress less frequently to reduce contention
 #pragma omp critical
-      { printProgressBar(progress, total_iterations); }
+{
+if (x % progress_interval == 0) {
+printProgressBar(x, total_iterations);
+}
+}
 
-      for (int y = 0; y < dimY; ++y) {
-        dxy2 = dx2[x] + dy2[y];
-        for (int z = 0; z < dimZ; ++z) {
-          dxyz2 = dxy2 + dz2[z];
+for (int y = 0; y < dimY; ++y) {
+T dxy2 = dx2[x] + dy2[y];
+for (int z = 0; z < dimZ; ++z) {
+T dxyz2 = dxy2 + dz2[z];
 
-          if (dxyz2 > 1.0)
-            continue;
+// Skip voxels outside the unit sphere
+if (dxyz2 > 1.0)
+continue;
 
-          // function value at point
-          ComplexT fVal = (0, 0);
-          for (int n = _minN; n <= _maxN; ++n) {
-            int maxK = n / 2;
-            for (int k = 0; k <= maxK; ++k) {
-              for (int nu = 0; nu <= k; ++nu) {
-                // check whether l is within bounds
-                int l = n - 2 * k;
-                if (l < _minL || l > _maxL)
-                  continue;
+// Reset function value for this voxel
+ComplexT fVal(0, 0);
 
-                for (int m = -l; m <= l; ++m) {
-                  // zernike polynomial evaluated at point
-                  ComplexT zp(0, 0);
-
-                  int absM = std::abs(m);
-
-                  int nCoeffs = gCoeffs_[n][l / 2][absM].size();
-                  for (int i = 0; i < nCoeffs; ++i) {
-                    ComplexCoeffT cc = gCoeffs_[n][l / 2][absM][i];
-                    ComplexT cvalue = cc.value_;
-
-                    // conjugate if m negative and take care of sign
-                    if (m < 0) {
-                      cvalue = std::conj(cvalue);
-                      if (m % 2)
-                        cvalue *= (T)(-1);
-                    }
-
-                    zp += cvalue * std::pow(dx[x], (T)cc.p_) *
-                          std::pow(dy[y], (T)cc.q_) * std::pow(dz[z], (T)cc.r_);
-                  }
-
-                  fVal += zp * GetMoment(n, l, m);
-                }
-              }
-            }
-          }
-          _grid[x][y][z] = fVal;
-        }
-      }
-      progress++;
+// Iterate through all valid moments
+for (int n = _minN; n <= _maxN; ++n) {
+int maxK = n / 2;
+for (int k = 0; k <= maxK; ++k) {
+int l = n - 2 * k;
+if (l < _minL || l > _maxL)
+  continue;
+  
+int li = l / 2;
+for (int m = -l; m <= l; ++m) {
+  int absM = std::abs(m);
+  
+  // Get the moment value
+  ComplexT momentVal = GetMoment(n, l, m);
+  
+  // Skip negligible moments for performance
+  if (std::abs(momentVal.real()) < 1e-10 && std::abs(momentVal.imag()) < 1e-10)
+    continue;
+    
+  // Evaluate Zernike polynomial at this point
+  ComplexT zp(0, 0);
+  const auto& coeffs = gCoeffs_[n][li][absM];
+  int nCoeffs = coeffs.size();
+  
+  for (int i = 0; i < nCoeffs; ++i) {
+    const ComplexCoeffT& cc = coeffs[i];
+    ComplexT cvalue = cc.value_;
+    
+    // Conjugate if m negative and adjust sign
+    if (m < 0) {
+      cvalue = std::conj(cvalue);
+      if (m % 2)
+        cvalue *= (T)(-1);
     }
+    
+    // Use precomputed powers with fallback to std::pow
+    T x_val = (cc.p_ < maxExp) ? dxPowers[x][cc.p_] : std::pow(dx[x], (T)cc.p_);
+    T y_val = (cc.q_ < maxExp) ? dyPowers[y][cc.q_] : std::pow(dy[y], (T)cc.q_);
+    T z_val = (cc.r_ < maxExp) ? dzPowers[z][cc.r_] : std::pow(dz[z], (T)cc.r_);
+    
+    zp += cvalue * x_val * y_val * z_val;
+  }
+  
+  // Add this moment's contribution
+  fVal += zp * momentVal;
+}
+}
+}
+
+// Store the result
+_grid[x][y][z] = fVal;
+}
+}
+}
+
+// Final progress report
+printProgressBar(total_iterations, total_iterations);
+std::cout << std::endl;
+}
 
     // NormalizeGridValues (_grid);
     printProgressBar(total_iterations, total_iterations);
