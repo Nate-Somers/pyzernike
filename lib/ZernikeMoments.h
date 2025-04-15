@@ -282,7 +282,7 @@ if (dxyz2 > 1.0)
 continue;
 
 // Reset function value for this voxel
-ComplexT fVal(0, 0);
+ComplexT fVal = (0, 0);
 
 // Iterate through all valid moments
 for (int n = _minN; n <= _maxN; ++n) {
