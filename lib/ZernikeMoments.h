@@ -277,8 +277,8 @@ T dxy2 = dx2[x] + dy2[y];
 for (int z = 0; z < dimZ; ++z) {
 T dxyz2 = dxy2 + dz2[z];
 
-// Skip voxels outside the unit sphere
-if (dxyz2 > 0.9)
+// Skip voxels outside the unit sphere and close to the edge
+if (dxyz2 > 0.90) 
 continue;
 
 // Reset function value for this voxel
