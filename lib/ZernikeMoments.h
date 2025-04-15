@@ -562,4 +562,4 @@ MomentT ZernikeMoments<VoxelT, MomentT>::EvalMonomialIntegral(int _p, int _q,
 
   result *= (T)(3.0 / (4.0 * PI)) * scale;
   return result;
-}
+} 
