@@ -1,3 +1,5 @@
+Changes made on this fork to drastically reduce time to compute moments and reconstruct object
+
 # 3D Zernike Descriptors
 
 pyzernike is a Python library for computing 3D Zernike invariants as descriptors for 3D shape comparison.
